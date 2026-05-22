@@ -6,7 +6,7 @@
   "types": "./dist/index.d.ts",
   "description": "OPA-backed release-gate provider for the promote.prod lifecycle stage. Calls the backend policy decision resolver and maps deny[] to NormalizedFinding[]. Registers as a security.release provider with @vibecontrols/vibe-plugin-security.",
   "engines": {
-    "bun": ">=1.3.0"
+    "bun": ">=1.3.14"
   },
   "author": {
     "name": "Vignesh T.V",
