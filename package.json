@@ -1,6 +1,6 @@
 {
   "name": "@vibecontrols/vibe-plugin-security-release-gate",
-  "version": "2026.521.1",
+  "version": "2026.528.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -28,8 +28,8 @@
     "sanity": "bun run format:check && bun run lint && bun run type:check && bun run test && bun run build"
   },
   "dependencies": {
-    "@vibecontrols/plugin-sdk": "2026.509.2",
-    "@vibecontrols/vibe-plugin-security": "2026.521.1"
+    "@vibecontrols/plugin-sdk": "2026.527.1",
+    "@vibecontrols/vibe-plugin-security": "2026.528.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

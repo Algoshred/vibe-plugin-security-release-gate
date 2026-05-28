@@ -5,7 +5,21 @@ import * as path from "node:path";
 
 import { ReleaseGateProvider } from "../src/provider.js";
 
-describe("ReleaseGateProvider", () => {
+const baseInput = (workdir: string, config: Record<string, unknown> = {}) => ({
+  runId: "r1",
+  vibeId: "v1",
+  workspaceId: "w1",
+  repoUrl: "x",
+  repoLocalPath: "/tmp",
+  commit: "c",
+  stage: "promote.prod" as const,
+  profile: { kind: "backend", languages: ["ts"], runtimes: ["bun"] },
+  policyLevel: "block" as const,
+  config,
+  workdir,
+});
+
+describe("ReleaseGateProvider (agent-local)", () => {
   test("name + stage are stable identifiers", () => {
     const p = new ReleaseGateProvider();
     expect(p.name).toBe("opa-release-gate");
@@ -18,59 +32,124 @@ describe("ReleaseGateProvider", () => {
     expect(m.supportedProfiles).toContain("container");
   });
 
-  test("errored when host has no workspaceQuery", async () => {
+  test("toolVersion is the agent-local policy identifier", () => {
+    const p = new ReleaseGateProvider();
+    expect(p.toolVersion).toContain("agent-local-policy@vibecontrols.security.release");
+  });
+
+  test("DENY when upstream has open critical findings", async () => {
     const p = new ReleaseGateProvider();
     const workdir = await fs.mkdtemp(path.join(tmpdir(), "release-gate-test-"));
     await p.init({});
-    await expect(
-      p.run({
-        runId: "r1",
-        vibeId: "v1",
-        workspaceId: "w1",
-        repoUrl: "x",
-        repoLocalPath: "/tmp",
-        commit: "c",
-        stage: "promote.prod",
-        profile: { kind: "backend", languages: ["ts"], runtimes: ["bun"] },
-        policyLevel: "block",
-        config: {},
-        workdir,
-      }),
-    ).rejects.toThrow(/workspaceQuery unavailable/);
-  });
-
-  test("maps OPA deny[] into NormalizedFinding[] with category=policy", async () => {
-    const p = new ReleaseGateProvider();
-    const workdir = await fs.mkdtemp(path.join(tmpdir(), "release-gate-test-"));
-    await p.init({
-      workspaceQuery: async () => ({
-        data: {
-          securityPolicyDecision: {
-            allow: false,
-            denyReasons: ["1 critical secret finding is open", "SBOM missing for artifact digest"],
-            evaluatedAt: "2026-05-21T00:00:00Z",
-            policyVersion: 1,
+    const result = await p.run(
+      baseInput(workdir, {
+        upstreamScanRunId: "build-run-1",
+        upstreamSummary: { critical: 2, high: 0, medium: 0, low: 0, info: 0 },
+        upstreamFindings: [
+          {
+            fingerprint: "fp1",
+            ruleId: "cve-2026-1234",
+            title: "Critical RCE",
+            severity: "critical",
+            category: "vuln",
+            status: "open",
           },
-        },
+          {
+            fingerprint: "fp2",
+            ruleId: "cve-2026-5678",
+            title: "Critical SQLi",
+            severity: "critical",
+            category: "vuln",
+            status: "open",
+          },
+        ],
       }),
-    });
-    const result = await p.run({
-      runId: "r2",
-      vibeId: "v1",
-      workspaceId: "w1",
-      repoUrl: "x",
-      repoLocalPath: "/tmp",
-      commit: "c",
-      stage: "promote.prod",
-      profile: { kind: "backend", languages: ["ts"], runtimes: ["bun"] },
-      policyLevel: "block",
-      config: { upstreamScanRunId: "build-run-1" },
-      workdir,
-    });
+    );
     expect(result.status).toBe("succeeded");
-    expect(result.findings.length).toBe(2);
+    expect(result.findings.length).toBeGreaterThan(0);
     expect(result.findings[0].category).toBe("policy");
     expect(result.evidence.length).toBe(1);
     expect(result.evidence[0].type).toBe("opa-decision");
+  });
+
+  test("ALLOW when no upstream criticals and upstream run id present", async () => {
+    const p = new ReleaseGateProvider();
+    const workdir = await fs.mkdtemp(path.join(tmpdir(), "release-gate-test-"));
+    await p.init({});
+    const result = await p.run(
+      baseInput(workdir, {
+        upstreamScanRunId: "build-run-2",
+        upstreamSummary: { critical: 0, high: 1, medium: 3, low: 0, info: 0 },
+        upstreamFindings: [],
+      }),
+    );
+    expect(result.status).toBe("succeeded");
+    expect(result.findings.length).toBe(0);
+    expect(result.evidence.length).toBe(1);
+  });
+
+  test("DENY when no upstream scan recorded", async () => {
+    const p = new ReleaseGateProvider();
+    const workdir = await fs.mkdtemp(path.join(tmpdir(), "release-gate-test-"));
+    await p.init({});
+    const result = await p.run(baseInput(workdir, {}));
+    expect(result.status).toBe("succeeded");
+    expect(result.findings.length).toBe(1);
+    expect(result.findings[0].title).toMatch(/upstream scan/i);
+  });
+
+  test("DENY when requireSignedArtifact and signature missing", async () => {
+    const p = new ReleaseGateProvider();
+    const workdir = await fs.mkdtemp(path.join(tmpdir(), "release-gate-test-"));
+    await p.init({});
+    const result = await p.run(
+      baseInput(workdir, {
+        upstreamScanRunId: "build-run-3",
+        upstreamSummary: { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+        upstreamFindings: [],
+        requireSignedArtifact: true,
+      }),
+    );
+    expect(result.findings.some((f) => /signature/i.test(f.title))).toBe(true);
+  });
+
+  test("DENY when maxHighOpen exceeded", async () => {
+    const p = new ReleaseGateProvider();
+    const workdir = await fs.mkdtemp(path.join(tmpdir(), "release-gate-test-"));
+    await p.init({});
+    const result = await p.run(
+      baseInput(workdir, {
+        upstreamScanRunId: "build-run-4",
+        upstreamSummary: { critical: 0, high: 3, medium: 0, low: 0, info: 0 },
+        upstreamFindings: [
+          {
+            fingerprint: "h1",
+            ruleId: "x",
+            title: "x",
+            severity: "high",
+            category: "vuln",
+            status: "open",
+          },
+          {
+            fingerprint: "h2",
+            ruleId: "y",
+            title: "y",
+            severity: "high",
+            category: "vuln",
+            status: "open",
+          },
+          {
+            fingerprint: "h3",
+            ruleId: "z",
+            title: "z",
+            severity: "high",
+            category: "vuln",
+            status: "open",
+          },
+        ],
+        maxHighOpen: 2,
+      }),
+    );
+    expect(result.findings.some((f) => /maxHighOpen/i.test(f.title))).toBe(true);
   });
 });
