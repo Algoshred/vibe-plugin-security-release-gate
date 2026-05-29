@@ -1,5 +1,12 @@
 # @vibecontrols/vibe-plugin-security-release-gate
 
+<!-- VIBECONTROLS_OSS_HEADER_START -->
+
+> **License**: MIT — see [LICENSE](./LICENSE).
+> **Note**: This plugin is open source. The `@vibecontrols/agent` runtime that loads it is **not** open source — it is a proprietary product of Burdenoff Consultancy Services Pvt. Ltd. See [vibecontrols.com](https://vibecontrols.com) for the agent.
+
+<!-- VIBECONTROLS_OSS_HEADER_END -->
+
 OPA-backed release gate for the `promote.prod` lifecycle stage in [VibeControls](https://vibecontrols.com). Does **not** shell out — it calls the backend's `securityPolicyDecision(scanRunId)` GraphQL resolver, which in turn POSTs to the existing `opa-wspace:8181` ACA sidecar with the appropriate Rego bundle.
 
 Registers as a `security.release` provider (name `opa-release-gate`) with the [`@vibecontrols/vibe-plugin-security`](https://www.npmjs.com/package/@vibecontrols/vibe-plugin-security) meta plugin.
@@ -20,6 +27,35 @@ It POSTs the document to `POST {OPA_URL}/v1/data/vibecontrols/security/release/a
 - `NormalizedFinding[]` — one row per `deny[]` entry with `category: "policy"` and severity derived from the policy expression
 - Evidence: a single `opa-decision` JSON document containing the input + decision (uploaded to S3 for the audit trail)
 
+<!-- VIBECONTROLS_OSS_FOOTER_START -->
+
+---
+
 ## License
 
-Proprietary — Burdenoff Consultancy Services Pvt. Ltd.
+Released under the [MIT License](./LICENSE).
+
+Copyright (c) 2026 Burdenoff Consultancy Services Private Limited, Algoshred Technologies Private Limited, and all its sister companies.
+
+Maintainer: **Vignesh T.V** — <https://github.com/tvvignesh>
+
+## Credits
+
+This plugin builds on the following upstream open-source projects. All trademarks and copyrights remain with their respective owners.
+
+- **Open Policy Agent (Rego inspiration)** — <https://www.openpolicyagent.org/>
+
+## About VibeControls
+
+**VibeControls** is the agentic engineering mission control for AI-native teams. Vibe-plugins extend the VibeControls agent with new providers, tools, sessions, tunnels, storage backends, and security stages.
+
+- Website: <https://vibecontrols.com>
+- Documentation: <https://docs.vibecontrols.com>
+- Plugin SDK: <https://github.com/algoshred/vibecontrols-plugin-sdk>
+- All plugins: <https://github.com/algoshred?q=vibe-plugin-&type=all>
+
+## Important: agent is not open source
+
+The `@vibecontrols/agent` runtime that loads and orchestrates these plugins is **closed source** and proprietary to Burdenoff Consultancy Services Pvt. Ltd. Only the plugin contract and the plugins themselves are released under MIT. If you want a fully self-hostable agent, please open an issue or contact the maintainer.
+
+<!-- VIBECONTROLS_OSS_FOOTER_END -->
