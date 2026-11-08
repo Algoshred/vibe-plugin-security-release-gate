@@ -82,10 +82,8 @@ export class ReleaseGateProvider implements SecurityProvider {
   readonly stage: SecurityStage = "promote.prod";
   readonly toolVersion = `agent-local-policy@${POLICY_ID}/v${POLICY_VERSION}`;
 
-  private host?: HostServices;
-
-  async init(host: HostServices): Promise<void> {
-    this.host = host;
+  async init(_host: HostServices): Promise<void> {
+    // The release gate is stateless; it needs nothing from the host.
   }
 
   async ensureToolInstalled(): Promise<void> {
